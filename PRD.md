@@ -23,7 +23,7 @@
 1. User submits `name`, `email` and `password` via the client interface.
 2. Client performs basic input format validation.
 3. Request is transmitted to the backend server.
-4. Validate the incoming data on the server using middleware with a library (joi)
+4. Validate the incoming data on the server using middleware with a library (ZOD)
 5. Server verifies the user does not already exist (search user in DB).
 6. Server securely hashes the password (using Bcrypt).
 7. Server saves the new user record to the database with `is_verified: false`.
@@ -47,7 +47,7 @@
 
 ### 2.3 Resend Verification Email Flow
 1. If the token expired or the mail was lost, user enters their email and sends a POST req on `/resend-verification`.
-2. Validations on the req.body that the email meets the requirement/criterias (using joi middleware).
+2. Validations on the req.body that the email meets the requirement/criterias (using ZOD middleware).
 3. Find user by email in DB. If user not found throw error.
 4. If the user is already verified (`is_verified: true`), return a message that the account is already verified.
 5. Create a new verification token (raw and hashed).
@@ -57,7 +57,7 @@
 
 ### 2.4 Authentication (Login) Flow
 1. User submits credentials (`email` and `password`).
-2. Server validates the req.body if the credential meet the requirement/criteria using middleware with joi
+2. Server validates the req.body if the credential meet the requirement/criteria using middleware with ZOD
 3. Server retrieves the user record from the database.
 4. Server checks if `is_verified` is `true`. If not, throw a `403 Forbidden` error ("Please verify your email before logging in").
 5. Server compares the hashed password against the submitted password.
@@ -96,7 +96,7 @@
 9. User clicks the link received in their email (`http://localhost:4000/reset-password/${rawToken}`).
 10. Client routing captures the `:token` from the URL and displays a form asking for a `newPassword`.
 11. User submits the new password, which sends a `POST` request to `/api/auth/reset-password/:token` with the new password in the body.
-12. Server validates the incoming `req.body` to ensure the new password meets security requirements (using Joi middleware).
+12. Server validates the incoming `req.body` to ensure the new password meets security requirements (using ZOD middleware).
 13. Server hashes the raw token extracted from the `req.params.token`.
 14. Server searches the database for a user who has that exact hashed token saved in their record AND checks if the token expiration time is still greater than `Date.now()`.
 15. If no user is found or the time has expired, server throws a `400 Bad Request` error ("Invalid or expired token").

@@ -2,6 +2,7 @@ import express from "express";
 import morgan from "morgan";
 import cookieParser from "cookie-parser";
 import cors from "cors";
+import { errorHandler } from "./common/middlewares/errorMiddleware.js";
 
 const app  = express();
 
@@ -18,5 +19,6 @@ app.use(cors({
 }));
 
 app.use(morgan('dev'));
+app.use(errorHandler); //global error handler
 
 export default app;

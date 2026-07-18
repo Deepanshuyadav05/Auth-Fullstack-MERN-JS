@@ -1,4 +1,4 @@
-import { ApiError } from "../utils/api-error.js";
+import ApiError from "../utils/apiError.js";
 
 const errorHandler = (err, req, res, next) => {
     // Normalize: if it's not an ApiError, it's an unexpected bug → wrap as 500
