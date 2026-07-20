@@ -10,7 +10,8 @@ console.log("router hit")
 
 //signup route
 authRouter.post('/signup', validate(signupSchema) ,AuthController.signup);
-
+//email verification route
+authRouter.post('/verify-email/:token', AuthController.emailVerification);
 
 
 export default authRouter;

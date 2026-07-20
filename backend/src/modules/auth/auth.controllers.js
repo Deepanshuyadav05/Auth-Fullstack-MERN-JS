@@ -12,6 +12,12 @@ const signup = asyncHandler(async (req, res) => {
     ApiResponse.created(res, "User registered successfully. Please check your email to verify your account.", userData);
 });
 
+//email verification controller
+const emailVerification = asyncHandler(async (req, res) => {
+    const { token } = req.params;
 
+    await authService.verifyEmail(token);
+    ApiResponse.ok(res, "Email verified successfully");
+});
 
-export { signup };
+export { signup, emailVerification };

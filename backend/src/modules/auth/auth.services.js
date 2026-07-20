@@ -51,6 +51,39 @@ const signup = async ({name, email, password}) => {
     return userData;
 }
 
+//email verification service
+const verifyEmail = async (token) => {
+    if(!token) {
+        throw ApiError.badRequest("Verification token is required");
+    }
+    console.log("token: ", token)
+
+    const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
+
+    const user = await User.findOne({
+        verificationTokenHash: hashedToken,
+        verificationTokenExpiresAt: { $gt: Date.now() } // Check if the token is not expired
+    }).select("+verificationTokenHash +verificationTokenExpiresAt"); // Include the fields in the query result
+
+    if(!user) {
+        throw ApiError.badRequest("Invalid or expired verification token");
+    }
+
+    //check does a user already verifyed
+    if(user.isEmailVerified){
+        throw ApiError.conflict("Email already verified")
+    }
+
+    user.isEmailVerified = true;
+    //In Mongoose, setting a field to null explicitly stores a null value in the database. Setting it to undefined completely removes the field from that specific document
+    user.verificationTokenHash = undefined;
+    user.verificationTokenExpiresAt = undefined;
+    await user.save();
+
+    //send response
+    return { message: "Email verified successfully" };
+}
 
 
-export { signup};
+
+export { signup, verifyEmail };
