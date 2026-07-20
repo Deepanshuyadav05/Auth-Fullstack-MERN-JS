@@ -3,6 +3,7 @@ import morgan from "morgan";
 import cookieParser from "cookie-parser";
 import cors from "cors";
 import { errorHandler } from "./common/middlewares/errorMiddleware.js";
+import authRouter from "./modules/auth/auth.routes.js";
 
 const app  = express();
 
@@ -19,6 +20,9 @@ app.use(cors({
 }));
 
 app.use(morgan('dev'));
+
+app.use('/api/auth', authRouter)
+
 app.use(errorHandler); //global error handler
 
 export default app;

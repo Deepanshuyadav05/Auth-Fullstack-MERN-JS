@@ -4,3 +4,4 @@ const asyncHandler = (fn) => (req, res, next) => {
     //or 
     // Promise.resolve(fn(req, res, next)).catch((err) => next(err));
 }
+export default asyncHandler;
