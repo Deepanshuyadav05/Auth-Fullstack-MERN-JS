@@ -4,6 +4,7 @@ import bcrypt from "bcryptjs";
 import ApiError from "../../common/utils/apiError.js";
 import { sendVerificationEmail } from "../../common/utils/sendEmail.js";
 import { generateVerificationToken } from "../../common/utils/verifyToken.js";
+import { generateAccessToken, generateRefreshToken } from "../../common/utils/generateTokenJWT.js";
 
 
 //signup service
@@ -84,6 +85,43 @@ const verifyEmail = async (token) => {
     return { message: "Email verified successfully" };
 }
 
+//login service
+const login = async ({email, password}) => {
+    const user = await User.findOne({ email }).select("+password +refreshTokenHash"); // Include the password and refreshTokenHash fields in the query result
 
+    if(!user) {
+        throw ApiError.unauthorized("Invalid email or password");
+    }
 
-export { signup, verifyEmail };
+    if(!user.isEmailVerified) {
+        throw ApiError.unauthorized("Email not verified. Please verify your email before logging in.");
+    }
+
+    const isMatch = await bcrypt.compare(password, user.password);
+
+    if(!isMatch) {
+        throw ApiError.unauthorized("Invalid email or password");
+    }
+
+    //Generate Access and Refresh JWT token
+    const accessToken = generateAccessToken(user._id)
+    const refreshToken = generateRefreshToken(user._id)
+
+    const hashedRefreshToken = crypto.createHash("sha256").update(refreshToken).digest("hex");
+
+    user.refreshTokenHash.push({ 
+        tokenHash: hashedRefreshToken, 
+        expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000 // 7 days
+    }); 
+    
+    await user.save();
+
+    const userData = user.toObject();
+    delete userData.password;
+    delete userData.refreshTokenHash;
+    delete userData.refreshTokenExpiresAt;
+
+    return {userData, accessToken, refreshToken};
+}
+
+export { signup, verifyEmail, login };
