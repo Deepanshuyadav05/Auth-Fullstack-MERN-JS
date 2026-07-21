@@ -1,5 +1,6 @@
 import asyncHandler from "../../common/utils/asyncHandler.js";
 import ApiResponse from "../../common/utils/apiResponse.js";
+import ApiError from "../../common/utils/apiError.js";
 import * as authService from "./auth.services.js";
 
 
@@ -40,4 +41,21 @@ const login = asyncHandler(async (req, res) => {
     ApiResponse.ok(res,"Login successful", { userData, accessToken });
 });
 
-export { signup, emailVerification, login };
+//refresh controller
+const refresh = asyncHandler(async (req, res) => {
+    const { refreshToken } = req.cookies;
+
+    if (!refreshToken) {
+        throw ApiError.unauthorized("Refresh token not found");
+    }
+
+    const { userData, newAccessToken, newRefreshToken } = await authService.refreshTokenService(refreshToken);
+
+    // Update the refresh token cookie
+    res.cookie("refreshToken", newRefreshToken, refreshCookieOptions);
+
+    ApiResponse.ok(res, "Token refreshed successfully", { userData, accessToken: newAccessToken });
+
+})
+
+export { signup, emailVerification, login, refresh };

@@ -14,6 +14,8 @@ authRouter.post('/signup', validate(signupSchema) ,AuthController.signup);
 authRouter.post('/verify-email/:token', AuthController.emailVerification);
 //login route
 authRouter.post('/login', validate(loginSchema), AuthController.login);
+//refresh route
+authRouter.post('/refresh', AuthController.refresh);
 
 
 export default authRouter;

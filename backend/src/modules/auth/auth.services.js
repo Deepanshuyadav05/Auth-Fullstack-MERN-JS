@@ -4,7 +4,7 @@ import bcrypt from "bcryptjs";
 import ApiError from "../../common/utils/apiError.js";
 import { sendVerificationEmail } from "../../common/utils/sendEmail.js";
 import { generateVerificationToken } from "../../common/utils/verifyToken.js";
-import { generateAccessToken, generateRefreshToken } from "../../common/utils/generateTokenJWT.js";
+import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from "../../common/utils/generateTokenJWT.js";
 
 
 //signup service
@@ -124,4 +124,74 @@ const login = async ({email, password}) => {
     return {userData, accessToken, refreshToken};
 }
 
-export { signup, verifyEmail, login };
+//refresh token service
+const refreshTokenService = async (refreshToken) => {
+    if(!refreshToken) {
+        throw ApiError.badRequest("Refresh token is required");
+    }
+
+    let payload;
+  try {
+        // verify the token that if the token is created using our SECRET or not
+        payload = verifyRefreshToken(refreshToken)
+    } catch (error) {
+        throw ApiError.unauthorized("Invalid or expired refresh token")
+    }
+
+    //find a user using the id we passed in the payload of token
+    //we got id as we have sended it when we have created the token in login service as a payload
+    const user = await User.findById(payload.userId).select("+refreshTokenHash")
+    if(!user){
+        throw ApiError.unauthorized("User not found")
+    }
+
+    //hash the incoming refresh token and match it with the hashed refreshToken stored in DB
+    const hashedRefreshToken = crypto.createHash("sha256").update(refreshToken).digest("hex");
+    //verify if the hashed refresh token exists in the user's refreshTokenHash array
+    //find method : returns the first element in the provided array that satisfies the provided testing function.
+    const match = user.refreshTokenHash.find(tokenObj => tokenObj.tokenHash === hashedRefreshToken);
+     // Reuse detection: valid signature, but hash isn't stored → already rotated out → replay
+     //major security issue, so delete all refresh tokens for that user and force re-login
+     // If the match is not found, it indicates that the refresh token has been reused or is invalid
+  if (!match) {
+    user.refreshTokenHash = [];        // nuke the family, force full re-login
+    await user.save();
+    throw ApiError.forbidden("Refresh token reuse detected");
+  }
+
+  // Rotate: remove used token, add new one, prune anything expired while we're here
+  const now = new Date();
+  //filter keeps every element for which the condition is true, and drops the rest. So an entry survives only if both are true:
+//   user.refreshTokenHash = user.refreshTokenHash.filter(
+//     //    remove the token that we used right now
+//     //    also remove the expired tokens, so that we don't have a huge list of tokens in the DB
+//     e => e.tokenHash !== hashedRefreshToken && e.expiresAt > now
+//   );
+  //or in simpler way
+  user.refreshTokenHash = user.refreshTokenHash
+  .filter(e => e.tokenHash !== hashedRefreshToken)  // consume used token (required)
+  .filter(e => e.expiresAt > now);            // prune expired (housekeeping)
+
+  //Generate Access and Refresh JWT token
+    const newAccessToken = generateAccessToken(user._id)
+    const newRefreshToken = generateRefreshToken(user._id)
+
+    const newHashedRefreshToken = crypto.createHash("sha256").update(newRefreshToken).digest("hex");
+
+    await user.refreshTokenHash.push({ 
+        tokenHash: newHashedRefreshToken, 
+        expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000 // 7 days
+    });
+
+    await user.save();
+
+    const userData = user.toObject();
+    delete userData.password;
+    delete userData.refreshTokenHash;
+
+    return {userData, newAccessToken, newRefreshToken};
+
+
+}
+
+export { signup, verifyEmail, login, refreshTokenService };
