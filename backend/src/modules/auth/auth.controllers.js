@@ -12,6 +12,14 @@ const refreshCookieOptions = {
     maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
 }
 
+// clearCookie only works with the SAME options the cookie was set with
+// (minus maxAge) — otherwise the browser keeps the original.
+const clearCookieOptions = {
+    httpOnly: true,
+    secure: process.env.NODE_ENV !== "development",
+    sameSite: "Strict"
+}
+
 
 //signup controller
 const signup = asyncHandler(async (req, res) => {
@@ -74,4 +82,29 @@ const resetPassword = asyncHandler(async (req, res) => {
 })
 
 
-export { signup, emailVerification, login, refresh, forgotPassword, resetPassword };
+//logout controller — this device only
+const logout = asyncHandler(async (req, res) => {
+    const { refreshToken } = req.cookies;
+
+    // req.userId was set by optionalAuthenticate — may be undefined if every
+    // token was dead; the service treats that as "nothing to revoke".
+    await authService.logoutService(req.userId, refreshToken);
+
+    // The mandatory half: the client cannot delete an httpOnly cookie itself.
+    res.clearCookie("refreshToken", clearCookieOptions);
+
+    ApiResponse.ok(res, "Logged out successfully");
+})
+
+//logout-all controller — every device
+const logoutAll = asyncHandler(async (req, res) => {
+    // req.userId guaranteed — strict authenticate runs before this.
+    await authService.logoutAllService(req.userId);
+
+    res.clearCookie("refreshToken", clearCookieOptions);
+
+    ApiResponse.ok(res, "Logged out from all devices successfully");
+})
+
+
+export { signup, emailVerification, login, refresh, forgotPassword, resetPassword, logout, logoutAll };

@@ -257,9 +257,74 @@ const resetPasswordService = async ({token, newPassword, confirmPassword}) => {
     user.resetTokenHash = undefined;
     user.resetTokenExpiresAt = undefined;
 
+    // Changing the password must end every existing session — otherwise an
+    // attacker who is already logged in stays logged in after the victim
+    // "secures" the account.
+    user.refreshTokenHash = [];
+
     await user.save();
 
     return { message: "Password reset successfully" };
 }
 
-export { signup, verifyEmail, login, refreshTokenService, forgotPasswordService, resetPasswordService };
+//logout service
+//logout service (BEARER+COOKIE DESIGN) — ends ONE session
+//The two parameters answer the two different questions:
+//  userId       (from middleware-verified token) → WHO is asking
+//  refreshToken (from the cookie)                → WHICH session to end
+//The access token can't identify a session — all 5 of your devices carry the
+//same { userId } payload. Only the refresh token is unique per login.
+const logoutService = async (userId, refreshToken) => {
+    // Idempotent, never throws: with optionalAuthenticate, userId may be
+    // undefined (both tokens dead) — nothing to revoke, but the controller
+    // must still run so it can clear the cookie.
+    if (!userId || !refreshToken) {
+        return { message: "Logged out successfully" };
+    }
+
+    // Hash exactly the way login did, so we can find the stored entry.
+    const hashedRefreshToken = crypto.createHash("sha256").update(refreshToken).digest("hex");
+
+    // One atomic write, scoped by _id — a stolen cookie can only ever end its
+    // own user's session. $pull avoids the find->mutate->save race with a
+    // concurrent /refresh (browsers fire both together on tab close).
+    //User.updateOne(  filter,  update  )
+//                     "which    "what to
+//                                document" do to it"
+//pattern 2
+//Read it as: "In this document's refreshTokenHash array, remove every element whose tokenHash field equals this value."
+    await User.updateOne(
+        { _id: userId },
+        { $pull: { refreshTokenHash: { tokenHash: hashedRefreshToken } } }   //$pull — "remove matching elements from an array"
+    );
+    //or
+    // Pattern 1 — what login/refresh do (document travels to Node and back):
+// const user = await User.findOne(...)   // ① DB → Node: fetch whole document
+// user.refreshTokenHash.push(...)        // ② mutate the JS copy in memory
+// await user.save()                      // ③ Node → DB: write it back
+
+
+// Pattern 1 has a race window between ① and ③. If a /refresh and a /logout for the same user run concurrently (real scenario — apps often fire both on tab close), both fetch the same version of the document at ①, both mutate their own in-memory copies, and whichever save() lands second overwrites the first one's work — e.g., the refresh's save() re-writes an array that still contains the token logout just removed. The session comes back from the dead.
+
+// Pattern 2 has no window. The find-and-modify happens as one atomic operation inside MongoDB; two concurrent atomic updates get serialized by the DB, and both effects survive.
+
+    // Hash not in the array → stale tab, not an attack. Removing nothing is
+    // the correct outcome. (During /refresh, a missing hash IS a replay.)
+    return { message: "Logged out successfully" };
+}
+
+//logout-all service (BEARER+COOKIE DESIGN) — ends EVERY session
+//No refresh token param: we're not selecting one session, we're clearing all.
+//userId is guaranteed here because the route uses the STRICT middleware.
+const logoutAllService = async (userId) => {
+    // Every device's next /refresh finds no matching hash → forced re-login.
+    await User.updateOne(
+        { _id: userId },
+        { $set: { refreshTokenHash: [] } }    //$set — "overwrite this field with this value"
+    );
+
+
+    return { message: "Logged out from all devices successfully" };
+}
+
+export { signup, verifyEmail, login, refreshTokenService, forgotPasswordService, resetPasswordService, logoutService, logoutAllService };

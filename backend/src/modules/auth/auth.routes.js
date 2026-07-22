@@ -2,6 +2,7 @@ import {Router} from 'express';
 import * as AuthController from './auth.controllers.js';
 import validate from '../../common/middlewares/validateZod.js';
 import { signupSchema, loginSchema, forgotPasswordSchema, resetPasswordSchema} from './auth.validation.js';
+import { authenticate, optionalAuthenticate } from './auth.middlewares.js';
 
 
 const authRouter = Router();
@@ -20,5 +21,12 @@ authRouter.post('/refresh', AuthController.refresh);
 authRouter.post('/forgot-password', validate(forgotPasswordSchema), AuthController.forgotPassword);
 //reset password route
 authRouter.post('/reset-password/:token', validate(resetPasswordSchema), AuthController.resetPassword);
+
+//logout — SOFT auth: an expired access token must not be able to strand a
+//live session (phantom logout). Identity falls back to the refresh cookie.
+authRouter.post('/logout', optionalAuthenticate, AuthController.logout);
+//logout-all — STRICT auth: destructive across all devices, so demand a
+//fresh, fully-verified credential.
+authRouter.post('/logout-all', authenticate, AuthController.logoutAll);
 
 export default authRouter;
