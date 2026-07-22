@@ -2,8 +2,8 @@ import {User} from "./auth.model.js";
 import crypto from "crypto";
 import bcrypt from "bcryptjs";
 import ApiError from "../../common/utils/apiError.js";
-import { sendVerificationEmail } from "../../common/utils/sendEmail.js";
-import { generateVerificationToken } from "../../common/utils/verifyToken.js";
+import { sendVerificationEmail, sendForgotPasswordEmail } from "../../common/utils/sendEmail.js";
+import { generatesecureTokenPair } from "../../common/utils/generateSecureTokenPair.js";
 import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from "../../common/utils/generateTokenJWT.js";
 
 
@@ -19,7 +19,7 @@ const signup = async ({name, email, password}) => {
 
     const hashedPassword = await bcrypt.hash(password, 12);
 
-    const {rawToken, hashedToken} = generateVerificationToken();
+    const {rawToken, hashedToken} = generatesecureTokenPair();
 
     console.log(" tokens:",rawToken);  //to test email verification link in postman
 
@@ -194,4 +194,72 @@ const refreshTokenService = async (refreshToken) => {
 
 }
 
-export { signup, verifyEmail, login, refreshTokenService };
+//forgot password service
+const forgotPasswordService = async (email) => {
+    if(!email) {
+        throw ApiError.badRequest("Email is required");
+    }
+    const user = await User.findOne({ email }).select("+resetTokenHash +resetTokenExpiresAt");
+
+    if(!user) {
+        throw ApiError.notFound("If an account with that email exists, a password reset link has been sent.");
+    }
+
+    //generate a secure token pair for password reset
+    const {rawToken, hashedToken} = generatesecureTokenPair();
+    console.log(rawToken, "raw token")
+    console.log(hashedToken, "hashed token")
+
+
+    user.resetTokenHash = hashedToken;
+    user.resetTokenExpiresAt = Date.now() + 60 * 60 * 1000; //1hr
+
+    await user.save();
+
+    const resetTokenUrl = `${process.env.CLIENT_URL}/reset-password?token=${rawToken}`;
+
+    try {
+        await sendForgotPasswordEmail(email, resetTokenUrl);
+    } catch (error) {
+        // undo the token write — an unsent token is just a dangling credential
+        user.resetTokenHash = undefined;
+        user.resetTokenExpiresAt = undefined;
+        await user.save();
+        throw ApiError.internalServerError("Failed to send password reset email. Please try again.");
+    }
+
+    return { message: "Password reset email sent successfully" };
+
+}
+
+//reset password service
+const resetPasswordService = async ({token, newPassword, confirmPassword}) => {
+    if(!token || !newPassword || !confirmPassword) {
+        throw ApiError.badRequest("Token and new password are required");
+    }
+    if(newPassword !== confirmPassword) {
+        throw ApiError.badRequest("Passwords do not match");
+    }
+
+    const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
+
+    const user = await User.findOne({
+        resetTokenHash: hashedToken,
+        resetTokenExpiresAt: { $gt: Date.now() } // Check if the token is not expired
+    }).select("+resetTokenHash +resetTokenExpiresAt +password");
+
+    if(!user) {
+        throw ApiError.badRequest("Invalid or expired reset token");
+    }
+
+    // Update the user's password
+    user.password = await bcrypt.hash(newPassword, 12);
+    user.resetTokenHash = undefined;
+    user.resetTokenExpiresAt = undefined;
+
+    await user.save();
+
+    return { message: "Password reset successfully" };
+}
+
+export { signup, verifyEmail, login, refreshTokenService, forgotPasswordService, resetPasswordService };

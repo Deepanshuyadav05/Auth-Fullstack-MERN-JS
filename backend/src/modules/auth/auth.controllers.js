@@ -58,4 +58,20 @@ const refresh = asyncHandler(async (req, res) => {
 
 })
 
-export { signup, emailVerification, login, refresh };
+//forgot password controller
+const forgotPassword = asyncHandler(async (req, res) => {
+    await authService.forgotPasswordService(req.body.email);
+    ApiResponse.ok(res, "If an account with that email exists, a password reset link has been sent.");
+})
+
+//reset password controller
+const resetPassword = asyncHandler(async (req, res) => {
+    const { token } = req.params;
+    const { newPassword, confirmPassword } = req.body;
+
+    await authService.resetPasswordService({ token, newPassword, confirmPassword });
+    ApiResponse.ok(res, "Password reset successfully");
+})
+
+
+export { signup, emailVerification, login, refresh, forgotPassword, resetPassword };
