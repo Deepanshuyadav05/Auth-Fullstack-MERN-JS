@@ -39,6 +39,13 @@ const emailVerification = asyncHandler(async (req, res) => {
     ApiResponse.ok(res, "Email verified successfully");
 });
 
+//resend verification email controller
+const resendVerificationEmail = asyncHandler(async (req, res) => {
+    const { email } = req.body;
+    await authService.resendEmailVerificationService(email);
+    ApiResponse.ok(res, "Verification email resent successfully");
+})
+
 //login controller
 const login = asyncHandler(async (req, res) => {
     const { userData, accessToken, refreshToken } = await authService.login(req.body);
@@ -107,4 +114,4 @@ const logoutAll = asyncHandler(async (req, res) => {
 })
 
 
-export { signup, emailVerification, login, refresh, forgotPassword, resetPassword, logout, logoutAll };
+export { signup, emailVerification, resendVerificationEmail, login, refresh, forgotPassword, resetPassword, logout, logoutAll };

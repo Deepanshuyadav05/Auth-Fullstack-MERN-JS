@@ -13,6 +13,8 @@ console.log("router hit")
 authRouter.post('/signup', validate(signupSchema) ,AuthController.signup);
 //email verification route
 authRouter.post('/verify-email/:token', AuthController.emailVerification);
+//resend verification email route
+authRouter.post('/resend-verification-email', validate(forgotPasswordSchema), AuthController.resendVerificationEmail);
 //login route
 authRouter.post('/login', validate(loginSchema), AuthController.login);
 //refresh route

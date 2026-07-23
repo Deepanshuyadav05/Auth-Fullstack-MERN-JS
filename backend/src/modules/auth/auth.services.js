@@ -85,6 +85,43 @@ const verifyEmail = async (token) => {
     return { message: "Email verified successfully" };
 }
 
+//resend email verification service
+const resendEmailVerificationService = async (email) => {
+     if(!email) {
+        throw ApiError.badRequest("Email is required");
+    }
+    const user = await User.findOne({ email }).select("+verificationTokenHash +verificationTokenExpiresAt");
+
+    if(!user) {
+        throw ApiError.notFound("If an account with that email exists, a verification email has been sent.");
+    }
+
+    //generate a secure token pair for email verification
+    const {rawToken, hashedToken} = generatesecureTokenPair();
+    console.log(rawToken, "raw token")
+    console.log(hashedToken, "hashed token")
+
+
+    user.verificationTokenHash = hashedToken;
+    user.verificationTokenExpiresAt = Date.now() + 24 * 60 * 60 * 1000; //24hr
+
+    await user.save();
+
+    const verificationLink = `${process.env.CLIENT_URL}/verify-email?token=${rawToken}`;
+
+    try {
+        await sendVerificationEmail(email, verificationLink);
+    } catch (error) {
+        // undo the token write — an unsent token is just a dangling credential
+        user.verificationTokenHash = undefined;
+        user.verificationTokenExpiresAt = undefined;
+        await user.save();
+        throw ApiError.internalServerError("Failed to send verification email. Please try again.");
+    }
+
+    return { message: "Verification email sent successfully" };
+}
+
 //login service
 const login = async ({email, password}) => {
     const user = await User.findOne({ email }).select("+password +refreshTokenHash"); // Include the password and refreshTokenHash fields in the query result
@@ -327,4 +364,8 @@ const logoutAllService = async (userId) => {
     return { message: "Logged out from all devices successfully" };
 }
 
-export { signup, verifyEmail, login, refreshTokenService, forgotPasswordService, resetPasswordService, logoutService, logoutAllService };
+
+
+
+
+export { signup, verifyEmail, resendEmailVerificationService, login, refreshTokenService, forgotPasswordService, resetPasswordService, logoutService, logoutAllService };
