@@ -88,7 +88,6 @@ const resetPassword = asyncHandler(async (req, res) => {
     ApiResponse.ok(res, "Password reset successfully");
 })
 
-
 //logout controller — this device only
 const logout = asyncHandler(async (req, res) => {
     const { refreshToken } = req.cookies;
@@ -112,6 +111,8 @@ const logoutAll = asyncHandler(async (req, res) => {
 
     ApiResponse.ok(res, "Logged out from all devices successfully");
 })
+
+
 
 
 export { signup, emailVerification, resendVerificationEmail, login, refresh, forgotPassword, resetPassword, logout, logoutAll };

@@ -32,7 +32,7 @@ const authenticate = asyncHandler(async (req, res, next) => {
         throw ApiError.unauthorized("Invalid or expired access token");
     }
 
-    // We signed { userId } at login — so it's decoded.userId, NOT decoded.id.
+    // We signed/stored id as { userId } while creating the JWT token — so it's decoded.userId, NOT decoded._id.
     // The DB lookup also rejects tokens of deleted/banned users, which pure
     // JWT verification cannot: the signature stays valid after deletion.
     const user = await User.findById(decoded.userId);
