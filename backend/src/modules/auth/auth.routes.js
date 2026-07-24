@@ -38,8 +38,8 @@ authRouter.post('/logout', optionalAuthenticate, AuthController.logout);
 //fresh, fully-verified credential.
 authRouter.post('/logout-all', authenticate, AuthController.logoutAll);
 
-
-
+//getSessions route
+authRouter.get("/sessions", authenticate, AuthController.getSessions)
 
 
 export default authRouter;

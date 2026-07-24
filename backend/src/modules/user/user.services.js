@@ -1,9 +1,9 @@
 import { User } from "../auth/auth.model.js"
 import ApiError from "../../common/utils/apiError.js"
+import crypto from 'crypto'
 
 
-
-
+//getMe service
 const getMe = async (userId) => {
     //Although we already have extracted the user in the authenticate middleware but
     //Just to keep it safe, if we had forgotten to mark the option select false for some sensitive field
@@ -15,5 +15,8 @@ const getMe = async (userId) => {
 
     return user
 }
+
+
+
 
 export { getMe }

@@ -112,7 +112,16 @@ const logoutAll = asyncHandler(async (req, res) => {
     ApiResponse.ok(res, "Logged out from all devices successfully");
 })
 
+//getSessions controller
+const getSessions = asyncHandler(async (req, res) => {
+    // req.userId comes from the authenticate middleware.
+    // req.cookies.refreshToken is needed so the service can flag "This device".
+    const sessions = await authService.getSessions(req.userId, req.cookies.refreshToken);
+
+    // Pure read — no cookies set, no tokens minted.
+    ApiResponse.ok(res, "Sessions fetched successfully", {sessions});
+})
 
 
 
-export { signup, emailVerification, resendVerificationEmail, login, refresh, forgotPassword, resetPassword, logout, logoutAll };
+export { signup, emailVerification, resendVerificationEmail, login, refresh, forgotPassword, resetPassword, logout, logoutAll, getSessions };

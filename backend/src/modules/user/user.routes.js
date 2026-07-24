@@ -7,4 +7,6 @@ const userRouter = Router();
 //getMe route
 userRouter.get("/me", authenticate, userController.getMe);
 
+
+
 export default userRouter;

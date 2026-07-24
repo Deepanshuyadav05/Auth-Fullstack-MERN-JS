@@ -364,8 +364,45 @@ const logoutAllService = async (userId) => {
     return { message: "Logged out from all devices successfully" };
 }
 
+//sessions extraction service
+const getSessions = async (userId, refreshToken) => {
+    //find user in DB
+    const user = await User.findById(userId).select('+refreshTokenHash')
+    if(!user) throw ApiError.notFound("user not found")
+
+    //hash the refreshToken and check if it exists in the user's sessions array
+    //the ? : means you never call crypto.createHash(...).update(...) at all when there's no token — you just assign hashedCurrent = null directly, 
+    // skipping the line that throws. So instead of crashing, the function keeps going, builds the sessions list normally, 
+    // and returns HTTP 200 with all sessions marked 
+    // isCurrent: false (which is the honest answer — "I don't know which of these is your current device, so I won't guess").
+    const hashedCurrent = refreshToken
+    ? crypto.createHash('sha256').update(refreshToken).digest('hex')
+    : null;
+
+    // get current date/time to check the expiries
+    const now = new Date();
+
+    const sessions = user.refreshTokenHash
+        // Drop dead sessions — the user should only see LIVE ones.
+        .filter(entry => entry.expiresAt > now)
+        // Map each stored entry to a SAFE shape. The tokenHash is a secret and
+        // must never leave the server — so we build a new object and simply
+        // never copy it in. isCurrent is COMPUTED here, not stored.
+        .map(entry => ({
+            id: entry._id,
+            createdAt: entry.createdAt,
+            expiresAt: entry.expiresAt,
+            isCurrent: hashedCurrent !== null && entry.tokenHash === hashedCurrent,
+        }));
+
+        // Show the current device first, then the rest — nicer for the UI.
+    sessions.sort((a, b) => Number(b.isCurrent) - Number(a.isCurrent));  //true = 1, false = 0
+
+    return sessions;
+}
 
 
 
 
-export { signup, verifyEmail, resendEmailVerificationService, login, refreshTokenService, forgotPasswordService, resetPasswordService, logoutService, logoutAllService };
+
+export { signup, verifyEmail, resendEmailVerificationService, login, refreshTokenService, forgotPasswordService, resetPasswordService, logoutService, logoutAllService, getSessions };
