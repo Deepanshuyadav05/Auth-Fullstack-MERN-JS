@@ -6,7 +6,6 @@ import { authenticate, optionalAuthenticate } from './auth.middlewares.js';
 
 
 const authRouter = Router();
-console.log("router hit")
 
 
 //signup route

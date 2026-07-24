@@ -1,6 +1,5 @@
 import { User } from "../auth/auth.model.js"
 import ApiError from "../../common/utils/apiError.js"
-import crypto from 'crypto'
 
 
 //getMe service

@@ -23,9 +23,7 @@ const clearCookieOptions = {
 
 //signup controller
 const signup = asyncHandler(async (req, res) => {
-    console.log("Signup request body:", req.body);
     
-
     const userData = await authService.signup(req.body);
 
     ApiResponse.created(res,"User registered successfully. Please check your email to verify your account.", userData);

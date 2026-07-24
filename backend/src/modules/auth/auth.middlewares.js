@@ -8,9 +8,7 @@ import { verifyAccessToken, verifyRefreshToken } from "../../common/utils/genera
 
 //STRICT gatekeeper — for every route that must only work when logged in.
 //Used on /logout-all now; later on /me, /change-password, etc.
-//Wrapped in asyncHandler because Express 4 does not catch throws from async
-//middleware on its own — without the wrapper a failure here hangs the request
-//instead of reaching your errorMiddleware.
+
 const authenticate = asyncHandler(async (req, res, next) => {
      let token;
 

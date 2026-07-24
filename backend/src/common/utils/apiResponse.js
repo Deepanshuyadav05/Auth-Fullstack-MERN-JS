@@ -21,7 +21,7 @@ class ApiResponse {
     }
 
     //static property for 'no-content' response
-    static noContent(res, message) {
+    static noContent(res) {
         return res.status(204).send()
     }
 }

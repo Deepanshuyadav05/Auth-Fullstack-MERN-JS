@@ -3,13 +3,14 @@ import crypto from "crypto";
 import bcrypt from "bcryptjs";
 import ApiError from "../../common/utils/apiError.js";
 import { sendVerificationEmail, sendForgotPasswordEmail } from "../../common/utils/sendEmail.js";
-import { generatesecureTokenPair } from "../../common/utils/generateSecureTokenPair.js";
+import { generateSecureTokenPair } from "../../common/utils/generateSecureTokenPair.js";
 import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from "../../common/utils/generateTokenJWT.js";
 
+// module level, near the imports — a REAL 60-char bcrypt hash, computed once at startup
+const DUMMY_HASH = bcrypt.hash("timing-equalizer-dummy-password", 12);
 
 //signup service
 const signup = async ({name, email, password}) => {
-    console.log("Signup service called with:", { name, email, password });
 
     const existingUser = await User.findOne({ email });
 
@@ -19,9 +20,11 @@ const signup = async ({name, email, password}) => {
 
     const hashedPassword = await bcrypt.hash(password, 12);
 
-    const {rawToken, hashedToken} = generatesecureTokenPair();
+    const {rawToken, hashedToken} = generateSecureTokenPair();
 
-    console.log(" tokens:",rawToken);  //to test email verification link in postman
+    if(process.env.NODE_ENV === 'development'){
+        console.log(" tokens:",rawToken);  //to test email verification link in postman
+    }
 
     const user = await User.create({
         name,
@@ -57,7 +60,9 @@ const verifyEmail = async (token) => {
     if(!token) {
         throw ApiError.badRequest("Verification token is required");
     }
-    console.log("token: ", token)
+    if(process.env.NODE_ENV === 'development'){
+        console.log("token: ", token)
+    }
 
     const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
 
@@ -93,15 +98,21 @@ const resendEmailVerificationService = async (email) => {
     const user = await User.findOne({ email }).select("+verificationTokenHash +verificationTokenExpiresAt");
 
     if(!user) {
-        throw ApiError.notFound("If an account with that email exists, a verification email has been sent.");
+        //it will return a success of 200 code so that the hacker will not be able to identify if the email is correct or not
+        return {message: "If an account with that email exists, a verification email has been sent"};
+    }
+
+    if (user.isEmailVerified) {
+        throw ApiError.conflict("Email already verified");
     }
 
     //generate a secure token pair for email verification
-    const {rawToken, hashedToken} = generatesecureTokenPair();
-    console.log(rawToken, "raw token")
-    console.log(hashedToken, "hashed token")
-
-
+    const {rawToken, hashedToken} = generateSecureTokenPair();
+    if(process.env.NODE_ENV === 'development'){
+        console.log(rawToken, "raw token")
+        console.log(hashedToken, "hashed token")
+    }
+    
     user.verificationTokenHash = hashedToken;
     user.verificationTokenExpiresAt = Date.now() + 24 * 60 * 60 * 1000; //24hr
 
@@ -126,18 +137,22 @@ const resendEmailVerificationService = async (email) => {
 const login = async ({email, password}) => {
     const user = await User.findOne({ email }).select("+password +refreshTokenHash"); // Include the password and refreshTokenHash fields in the query result
 
-    if(!user) {
+    ////we are doing this becaude finding user in db took ~10ms and comparing password with bcrypt took ~100ms 
+    //so if a hacker attack then he can find wheather the email is incorrect or the password by comparing the response time 
+    //even after we are sending the same error message "Invalid email or password"
+    if (!user) {
+        await bcrypt.compare(password, DUMMY_HASH);  // burn the same ~150ms  
+        throw ApiError.unauthorized("Invalid email or password");
+    }
+
+    //compare password
+    const isMatch = await bcrypt.compare(password, user.password);
+    if(!isMatch) {
         throw ApiError.unauthorized("Invalid email or password");
     }
 
     if(!user.isEmailVerified) {
         throw ApiError.unauthorized("Email not verified. Please verify your email before logging in.");
-    }
-
-    const isMatch = await bcrypt.compare(password, user.password);
-
-    if(!isMatch) {
-        throw ApiError.unauthorized("Invalid email or password");
     }
 
     //Generate Access and Refresh JWT token
@@ -150,13 +165,15 @@ const login = async ({email, password}) => {
         tokenHash: hashedRefreshToken, 
         expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000 // 7 days
     }); 
+
+    //not a login flow (but preffered as to filter the expired sessions of the user)
+    user.refreshTokenHash = user.refreshTokenHash.filter(e => e.expiresAt > new Date());   
     
     await user.save();
 
     const userData = user.toObject();
     delete userData.password;
     delete userData.refreshTokenHash;
-    delete userData.refreshTokenExpiresAt;
 
     return {userData, accessToken, refreshToken};
 }
@@ -215,7 +232,7 @@ const refreshTokenService = async (refreshToken) => {
 
     const newHashedRefreshToken = crypto.createHash("sha256").update(newRefreshToken).digest("hex");
 
-    await user.refreshTokenHash.push({ 
+    user.refreshTokenHash.push({ 
         tokenHash: newHashedRefreshToken, 
         expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000 // 7 days
     });
@@ -239,14 +256,16 @@ const forgotPasswordService = async (email) => {
     const user = await User.findOne({ email }).select("+resetTokenHash +resetTokenExpiresAt");
 
     if(!user) {
-        throw ApiError.notFound("If an account with that email exists, a password reset link has been sent.");
+        return {message: "If an account with that email exists, a password reset link has been sent."};
     }
 
     //generate a secure token pair for password reset
-    const {rawToken, hashedToken} = generatesecureTokenPair();
-    console.log(rawToken, "raw token")
-    console.log(hashedToken, "hashed token")
+    const {rawToken, hashedToken} = generateSecureTokenPair();
 
+    if(process.env.NODE_ENV === 'development'){
+        console.log(rawToken, "raw token")
+        console.log(hashedToken, "hashed token")
+    }
 
     user.resetTokenHash = hashedToken;
     user.resetTokenExpiresAt = Date.now() + 60 * 60 * 1000; //1hr
